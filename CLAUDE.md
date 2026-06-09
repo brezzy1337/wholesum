@@ -162,3 +162,43 @@ The implement → review → ship chain is wired through the devkit:
 
 Start a change with `/claude-t3-devkit:code-todo`; let it route. Don't hand-edit across domains when
 a routed implementer is the right tool.
+
+---
+
+## Feature implementation (/code-todo)
+
+`/code-todo` is the implement-and-review front end to shipping. It reuses this file's **Domains**
+table (to route a change to the right agent) and **invocation protocol** (to brief each agent), and
+it ends by handing an approved branch to `/ship`. It does **not** open PRs, push, or merge — that's
+`/ship`'s job.
+
+The central thread owns the chain (sub-agents cannot spawn sub-agents):
+
+1. **Read** the change request.
+2. **Route** to domain(s) per the Domains table — one `implementer` per non-overlapping domain in
+   parallel; dependent domains (per the chain `db → auth → api → {web, mobile, worker}`) in
+   sequence, each step's output handed to the next. When unsure, sequential.
+3. **Implement** via `implementer` sub-agent(s) with the full four-part brief. Route any new or
+   bumped dependency through `dependency-auditor` first; stop on a NO-GO.
+4. **Gate.** Commit to a `feat/<slug>` branch, then post the diff summary to **`#proj-wholesum`**
+   via `slack-notifier` and wait for human approval **in the terminal**. Slack gives visibility
+   into the diff; approval comes back in the session — the run does **not** poll Slack.
+5. **Hand off.** On approval, invoke `/claude-t3-devkit:ship` on the branch.
+
+**Verification gate** (per slice; there is no `test` task yet — types + lint + build):
+
+```bash
+pnpm -F @acme/<pkg> typecheck
+pnpm -F @acme/<pkg> lint
+pnpm build            # cross-cutting changes (db, validators, tooling)
+```
+
+**Boundaries that keep the two halves clean:**
+- The gate is not optional. Do not open a PR, push, or hand off before approval.
+- Implementers edit only their domain's globs. A slice that needs to cross a boundary is a routing
+  decision for the central thread, not a widening the implementer does on its own.
+- Only the central thread commits; implementers edit and verify.
+- For a single-domain change, dispatch one implementer — don't over-spawn.
+
+**State** lives on the branch (the work + commit message) and the Slack thread, not the session, so
+an interrupted run resumes from the branch.
