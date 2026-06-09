@@ -40,6 +40,15 @@ overrides:
   "@types/minimatch": 5.1.2
   lightningcss: 1.30.1
   vite: 7.1.12
+  # Remediate HIGH advisories in transitive deps (pulled via better-auth).
+  # Ranges are CAPPED to stay inside the consumers' caret ranges
+  # (better-auth: defu ^6.1.4, kysely ^0.28.5) — an open-ended ">=" would
+  # let pnpm force-resolve kysely 0.29.x / defu 7.x past those peer ranges.
+  # defu: prototype pollution (GHSA-737v-mqg7-c878), patched 6.1.5.
+  # kysely: SQL-injection / JSON-path advisories
+  #   (GHSA-wmrf-hv6w-mr66, GHSA-8cpq-38p9-67gx, GHSA-pv5w-4p9q-p3v2), patched 0.28.17.
+  defu: ">=6.1.7 <7.0.0"
+  kysely: ">=0.28.17 <0.29.0"
 
 publicHoistPattern:
   - "@ianvs/prettier-plugin-sort-imports"
