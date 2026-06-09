@@ -4,5 +4,5 @@
       "source": { "source": "github", "repo": "brezzy1337/claude-t3-devkit" }
     }
   },
-  "enabledPlugins": ["claude-t3-devkit@claude-t3-devkit"]
+  "enabledPlugins": { "claude-t3-devkit@claude-t3-devkit": true }
 }
