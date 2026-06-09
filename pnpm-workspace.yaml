@@ -50,6 +50,46 @@ overrides:
   defu: ">=6.1.7 <7.0.0"
   kysely: ">=0.28.17 <0.29.0"
 
+  # ── Dev/build-tooling advisory remediation ──────────────────────────────
+  # Every package below is DEV/BUILD/CLI tooling — none ships to the deployed
+  # Lambda runtime (OpenNext bundles only the Next.js server's imports). This is
+  # CI / developer-machine supply-chain hygiene. Vetted via dependency-auditor.
+  # Ranges are capped; multi-major packages use "pkg@MAJOR" selectors so the
+  # other major in the tree is left untouched. The @turbo/gen + turbo bump to
+  # 2.9.16 (package.json) already removes basic-ftp, handlebars, tmp, ip-address,
+  # diff, and @turbo/workspaces at the source, so those need no override here.
+  #
+  # CRITICAL
+  "shell-quote": ">=1.8.4 <2.0.0"                  # GHSA via react-devtools-core
+  # HIGH
+  "tar": ">=7.5.2 <8.0.0"                          # @expo/cli
+  "tar-fs@2": ">=2.1.4 <3.0.0"                     # better-auth>better-sqlite3>prebuild-install
+  "glob@10": ">=10.5.0 <11.0.0"                    # @expo/cli (7.x instance is a documented residual)
+  "node-forge": ">=1.3.2 <2.0.0"                   # @expo/cli
+  "undici": ">=6.23.0 <7.0.0"                      # @expo/cli (stay in 6.x)
+  "minimatch@3": ">=3.1.5 <4.0.0"                  # eslint/glob7 ReDoS
+  "minimatch@9": ">=9.0.6 <10.0.0"                 # @expo/cli ReDoS
+  "picomatch@2": ">=2.3.2 <3.0.0"
+  "picomatch@3": ">=3.0.2 <4.0.0"                  # @expo/cli
+  "lodash": ">=4.18.1 <5.0.0"
+  "flatted": ">=3.4.2 <4.0.0"                      # eslint>file-entry-cache
+  # MODERATE
+  "@esbuild-kit/core-utils>esbuild": ">=0.25.5 <0.26.0"
+  "@xmldom/xmldom": ">=0.8.12 <0.9.0"              # @expo/cli (stay in 0.8.x)
+  "brace-expansion@1": ">=1.1.15 <2.0.0"
+  "brace-expansion@2": ">=2.0.3 <3.0.0"            # @expo/cli
+  "js-yaml@3": ">=3.14.2 <4.0.0"
+  "js-yaml@4": ">=4.1.1 <5.0.0"                    # eslint>@eslint/eslintrc
+  "ajv@6": ">=6.15.0 <7.0.0"                       # eslint (stay in 6.x)
+  "yaml@2": ">=2.8.4 <3.0.0"                       # @expo/metro (stay in 2.x)
+  "postcss@8": ">=8.5.9 <9.0.0"
+  "ws@8": ">=8.20.1 <9.0.0"                        # @expo/cli (6.x/7.x instances unaffected)
+  #
+  # ── Accepted residuals (no safe override; both dev-tooling, non-runtime) ──
+  # • uuid 7.0.3 (MODERATE) — pinned by xcode@3.0.1 (^7.0.3); v11 fix breaks xcode. Revisit on Expo SDK 55.
+  # • drizzle-orm 0.33 (HIGH) — bundled by @better-auth/cli, runs only at `pnpm auth:generate`.
+  #     Fix = bump better-auth 1.4.0-beta.9 → 1.4.21 (runtime + schema regen); deferred to its own PR.
+
 publicHoistPattern:
   - "@ianvs/prettier-plugin-sort-imports"
   - prettier-plugin-tailwindcss
