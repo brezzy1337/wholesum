@@ -4,8 +4,9 @@
  * This file is used exclusively by the Better Auth CLI to generate database schemas.
  * DO NOT USE THIS FILE DIRECTLY IN YOUR APPLICATION.
  *
- * This configuration is consumed by the CLI command:
- * `pnpx @better-auth/cli generate --config script/auth-cli.ts --output ../db/src/auth-schema.ts`
+ * This configuration is consumed by the locally pinned CLI bin (see the
+ * `generate` script in package.json):
+ * `better-auth generate --config script/auth-cli.ts --output ../db/src/auth-schema.ts`
  *
  * For actual authentication usage, import from "../src/index.ts" instead.
  */
