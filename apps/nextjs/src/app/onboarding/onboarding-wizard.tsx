@@ -145,7 +145,7 @@ export function OnboardingWizard() {
   const upsertProfile = useMutation(
     trpc.profiles.upsert.mutationOptions({
       onSuccess: () => {
-        router.push("/");
+        router.push("/plans");
         router.refresh();
       },
     }),

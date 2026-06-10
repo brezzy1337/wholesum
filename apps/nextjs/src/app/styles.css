@@ -17,6 +17,7 @@
   --color-content-tertiary: #6b736f;
   --color-surface-neutral: #ecf1ee;
   --color-positive: #1f6b4f;
+  --color-negative: #b3402f;
 }
 
 @utility container {

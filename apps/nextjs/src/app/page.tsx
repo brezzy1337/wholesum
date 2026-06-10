@@ -1,9 +1,12 @@
 import Link from "next/link";
 
+import { getSession } from "~/auth/server";
 import { HydrateClient } from "~/trpc/server";
 import { AuthShowcase } from "./_components/auth-showcase";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const session = await getSession();
+
   return (
     <HydrateClient>
       <main className="container h-screen py-16">
@@ -18,6 +21,14 @@ export default function HomePage() {
           >
             Get started
           </Link>
+          {session ? (
+            <Link
+              href="/plans"
+              className="text-spruce font-semibold underline-offset-4 hover:underline"
+            >
+              Your plans
+            </Link>
+          ) : null}
         </div>
       </main>
     </HydrateClient>
