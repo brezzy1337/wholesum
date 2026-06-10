@@ -7,7 +7,7 @@ import type {
   PlanPayload,
   PlanStatus,
 } from "@acme/validators";
-import { and, desc, eq, inArray } from "@acme/db";
+import { and, desc, eq, gte, inArray } from "@acme/db";
 import { plans, profiles } from "@acme/db/schema";
 import {
   CreatePlanInputSchema,
@@ -28,6 +28,30 @@ const IN_FLIGHT_STATUSES: PlanStatus[] = [
   PlanStatusSchema.enum.pending,
   PlanStatusSchema.enum.processing,
 ];
+
+/**
+ * Per-user spend ceiling: each generated plan is one Bedrock call
+ * (~$0.04–0.08), so plan creation is rate-capped before the queue is ever
+ * wired (2026-06-10 security review — precondition for the infra slice).
+ */
+const MAX_PLANS_PER_HOUR = 10;
+
+async function enforcePlanRateLimit(
+  database: typeof db,
+  userId: string,
+): Promise<void> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentCount = await database.$count(
+    plans,
+    and(eq(plans.userId, userId), gte(plans.createdAt, oneHourAgo)),
+  );
+  if (recentCount >= MAX_PLANS_PER_HOUR) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "You've hit the hourly plan limit — try again in a bit.",
+    });
+  }
+}
 
 /**
  * Load the caller's profile and require it to be onboarding-complete (budget
@@ -79,7 +103,13 @@ async function enqueueOrMarkFailed(
         ),
       )
       .returning();
-    return failed ?? plan;
+    if (failed) return failed;
+    // The conditional UPDATE missed — another transition (e.g. a cancel) won
+    // the race. Return the row's CURRENT state, never the stale in-memory one.
+    const current = await database.query.plans.findFirst({
+      where: eq(plans.id, plan.id),
+    });
+    return current ?? plan;
   }
 }
 
@@ -101,6 +131,7 @@ export const planRouter = {
   create: protectedProcedure
     .input(CreatePlanInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await enforcePlanRateLimit(ctx.db, ctx.session.user.id);
       const profile = await getCompleteProfile(ctx.db, ctx.session.user.id);
       const snapshot = buildSnapshot(profile, input.retailerKey ?? null);
 
@@ -207,6 +238,8 @@ export const planRouter = {
           message: "Plan is still being generated",
         });
       }
+
+      await enforcePlanRateLimit(ctx.db, ctx.session.user.id);
 
       // Fresh snapshot from the CURRENT profile (not a copy of the source
       // snapshot) so profile edits take effect; the retailer choice carries

@@ -59,7 +59,10 @@ export async function processPlan(planId: string): Promise<void> {
 
   // Race-safe claim: the status condition lives inside the UPDATE. A row
   // already in 'processing' (redelivery after a crashed invocation) is
-  // reprocessed without re-claiming.
+  // reprocessed without re-claiming. If SQS at-least-once delivers the same
+  // message to two invocations, both may run the engine; the final
+  // conditional UPDATE lets exactly one win — duplicate Bedrock spend on
+  // that edge, but no data corruption.
   if (row.status === pending) {
     const claimed = await db
       .update(plans)
