@@ -1,21 +1,19 @@
-import type { BetterAuthOptions, BetterAuthPlugin } from "better-auth";
+import type { BetterAuthOptions } from "better-auth";
 import { expo } from "@better-auth/expo";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { oAuthProxy } from "better-auth/plugins";
 
 import { db } from "@acme/db/client";
 
-export function initAuth<
-  TExtraPlugins extends BetterAuthPlugin[] = [],
->(options: {
+export function initAuth(options: {
   baseUrl: string;
   productionUrl: string;
   secret: string | undefined;
 
   discordClientId: string;
   discordClientSecret: string;
-  extraPlugins?: TExtraPlugins;
 }) {
   const config = {
     database: drizzleAdapter(db, {
@@ -28,7 +26,10 @@ export function initAuth<
         productionURL: options.productionUrl,
       }),
       expo(),
-      ...(options.extraPlugins ?? []),
+      // Auth is only ever served from the Next.js app (Lambda via OpenNext).
+      // `next/headers` is imported dynamically inside the plugin's hooks, so
+      // including it here is inert outside a Next runtime. Must stay last.
+      nextCookies(),
     ],
     socialProviders: {
       discord: {

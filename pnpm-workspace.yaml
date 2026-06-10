@@ -4,8 +4,10 @@ packages:
   - tooling/*
 
 catalog:
-  "@better-auth/cli": 1.4.0-beta.9
-  "@better-auth/expo": 1.4.0-beta.9
+  # CLI intentionally trails the runtime: upstream ships no stable 1.6.x CLI
+  # (its `latest` dist-tag is the 1.4 line). Revisit when a 1.6 CLI lands.
+  "@better-auth/cli": 1.4.22
+  "@better-auth/expo": 1.6.14
   "@eslint/js": ^9.38.0
   "@tailwindcss/postcss": ^4.1.16
   "@tailwindcss/vite": ^4.1.16
@@ -15,12 +17,14 @@ catalog:
   "@trpc/tanstack-react-query": 11.17.0
   "@types/node": ^22.18.12
   "@vitejs/plugin-react": 5.1.0
-  better-auth: 1.4.0-beta.9
+  better-auth: 1.6.14
   eslint: ^9.38.0
   prettier: ^3.6.2
   tailwindcss: ^4.1.16
   typescript: ^5.9.3
-  zod: ^4.1.12
+  # tilde, not caret: better-auth needs >=4.3.5, but zod 4.4.x has behavioral
+  # changes vs 4.3.x that haven't been vetted — stay on the 4.3 line.
+  zod: ~4.3.6
   vite: 7.1.12
 
 catalogs:
@@ -49,6 +53,15 @@ overrides:
   #   (GHSA-wmrf-hv6w-mr66, GHSA-8cpq-38p9-67gx, GHSA-pv5w-4p9q-p3v2), patched 0.28.17.
   defu: ">=6.1.7 <7.0.0"
   kysely: ">=0.28.17 <0.29.0"
+  # better-auth's own `zod ^4.3.6` dep would otherwise resolve to 4.4.x —
+  # unvetted behavioral changes vs 4.3.x and a duplicate zod instance beside
+  # the catalog's ~4.3.6. Cap to the 4.3 line (zod@3 instance unaffected).
+  "zod@4": ">=4.3.6 <4.4.0"
+  # Remediate HIGH drizzle-orm advisory (GHSA-gpj5-g38j-94v9, SQL injection,
+  # patched 0.45.2) in CLI dev tooling. CLI 1.4.22 declares ^0.41.0; the column
+  # APIs it uses are unchanged 0.41→0.45. Dev-only path (`pnpm auth:generate`),
+  # and 0.45.2 dedupes with @acme/db's own drizzle-orm.
+  "@better-auth/cli>drizzle-orm": ">=0.45.2 <0.46.0"
 
   # ── Dev/build-tooling advisory remediation ──────────────────────────────
   # Every package below is DEV/BUILD/CLI tooling — none ships to the deployed
@@ -85,10 +98,14 @@ overrides:
   "postcss@8": ">=8.5.9 <9.0.0"
   "ws@8": ">=8.20.1 <9.0.0"                        # @expo/cli (6.x/7.x instances unaffected)
   #
-  # ── Accepted residuals (no safe override; both dev-tooling, non-runtime) ──
+  # ── Accepted residuals (no safe override; dev-tooling, non-runtime) ──
   # • uuid 7.0.3 (MODERATE) — pinned by xcode@3.0.1 (^7.0.3); v11 fix breaks xcode. Revisit on Expo SDK 55.
-  # • drizzle-orm 0.33 (HIGH) — bundled by @better-auth/cli, runs only at `pnpm auth:generate`.
-  #     Fix = bump better-auth 1.4.0-beta.9 → 1.4.21 (runtime + schema regen); deferred to its own PR.
+  # • better-auth 1.4.22 (MODERATE, GHSA-wxw3-q3m9-c3jr OAuth state) — the copy
+  #     bundled inside @better-auth/cli, used only for `pnpm auth:generate`
+  #     codegen; it never serves OAuth callbacks. The RUNTIME better-auth is
+  #     1.6.14 (patched). Forcing the CLI's copy to 1.6.x breaks it (the 1.4
+  #     CLI imports `getMigrations` from better-auth/db, removed in 1.6).
+  #     Clears when upstream ships a stable 1.6.x CLI.
 
 publicHoistPattern:
   - "@ianvs/prettier-plugin-sort-imports"
