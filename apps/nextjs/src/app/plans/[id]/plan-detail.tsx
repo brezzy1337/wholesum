@@ -106,9 +106,14 @@ function LoadedPlan(props: { plan: Plan }) {
   const cancelPlan = useMutation(
     trpc.plan.cancel.mutationOptions({
       onSuccess: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: trpc.plan.get.queryKey({ id: plan.id }),
-        });
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: trpc.plan.get.queryKey({ id: plan.id }),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: trpc.plan.list.queryKey(),
+          }),
+        ]);
       },
     }),
   );
@@ -116,6 +121,9 @@ function LoadedPlan(props: { plan: Plan }) {
   const regeneratePlan = useMutation(
     trpc.plan.regenerate.mutationOptions({
       onSuccess: (newPlan) => {
+        void queryClient.invalidateQueries({
+          queryKey: trpc.plan.list.queryKey(),
+        });
         router.push(`/plans/${newPlan.id}`);
       },
     }),

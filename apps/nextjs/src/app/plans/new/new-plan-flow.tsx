@@ -42,7 +42,12 @@ export function NewPlanFlow() {
   );
 
   const trimmedPostal = postalCode.trim();
-  const canSearch = trimmedPostal.length >= 3 && trimmedPostal.length <= 10;
+  // Mirrors the server-side NearbyRetailersInputSchema bounds + regex so the
+  // user gets a disabled button, not a raw zod error from the server.
+  const canSearch =
+    trimmedPostal.length >= 3 &&
+    trimmedPostal.length <= 10 &&
+    /^[A-Za-z0-9][A-Za-z0-9 -]*$/.test(trimmedPostal);
   const canGenerate =
     (selectedRetailerKey !== null || storeSkipped) && !createPlan.isPending;
 
@@ -83,9 +88,12 @@ export function NewPlanFlow() {
               autoComplete="postal-code"
               placeholder="e.g. 94103"
               value={postalCode}
-              onChange={(event) =>
-                setPostalCode(event.target.value.slice(0, 10))
-              }
+              onChange={(event) => {
+                setPostalCode(event.target.value.slice(0, 10));
+                // A store picked for the previous postal code must not
+                // silently ride along with a new one.
+                setSelectedRetailerKey(null);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") handleFindStores();
               }}
