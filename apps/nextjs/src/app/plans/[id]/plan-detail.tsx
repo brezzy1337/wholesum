@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -129,16 +129,23 @@ function LoadedPlan(props: { plan: Plan }) {
     }),
   );
 
-  const [cartFallbackUrl, setCartFallbackUrl] = useState<string | null>(null);
-
   const createCartLink = useMutation(
     trpc.orders.createCartLink.mutationOptions({
       onSuccess: ({ url }) => {
-        const opened = window.open(url, "_blank", "noopener,noreferrer");
-        setCartFallbackUrl(opened ? null : url);
+        window.open(url, "_blank", "noopener,noreferrer");
       },
     }),
   );
+  // Reuse the minted link on repeat clicks instead of re-minting (links
+  // expire on their own; one per plan view is plenty).
+  const cartUrl = createCartLink.data?.url ?? null;
+  const openCart = () => {
+    if (cartUrl) {
+      window.open(cartUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    createCartLink.mutate({ id: plan.id });
+  };
 
   // On a ready plan, checkout is the primary action; Regenerate is secondary.
   const isReadyWithPayload = plan.status === "ready" && plan.payload != null;
@@ -262,22 +269,23 @@ function LoadedPlan(props: { plan: Plan }) {
             {createCartLink.error.message}
           </p>
         ) : null}
-        <PrimaryButton
-          onClick={() => createCartLink.mutate({ id: plan.id })}
-          disabled={createCartLink.isPending}
-        >
+        <PrimaryButton onClick={openCart} disabled={createCartLink.isPending}>
           {createCartLink.isPending
             ? "Preparing your cart…"
-            : "Open in Instacart"}
+            : cartUrl
+              ? "Open your cart again"
+              : "Open in Instacart"}
         </PrimaryButton>
-        {cartFallbackUrl ? (
+        {cartUrl ? (
+          // Always offered once minted — covers blocked popups (Safari can
+          // report success even when it blocked the tab).
           <a
-            href={cartFallbackUrl}
+            href={cartUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-spruce text-center text-sm font-semibold"
           >
-            Your cart link is ready — open it here
+            New tab didn&apos;t open? Use your cart link
           </a>
         ) : null}
         <p className="text-content-tertiary text-xs">

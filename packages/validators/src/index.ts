@@ -49,7 +49,10 @@ export const PlanPayloadSchema = z.object({
         isOrganic: z.boolean(),
       }),
     )
-    .min(1),
+    .min(1)
+    // Upper bound keeps downstream request bodies (Instacart products-link)
+    // structurally bounded; a weekly household list is well under this.
+    .max(100),
   nutrition: z.object({
     caloriesPerDayPerPerson: z.int().min(0),
     proteinGramsPerDayPerPerson: z.int().min(0),
