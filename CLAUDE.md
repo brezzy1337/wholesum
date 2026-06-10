@@ -12,6 +12,79 @@ the main session how to **delegate work across domains**.
 
 ---
 
+## Product scope — feature list
+
+*"Eat well, spend smart"* — an AI grocery planner that turns a budget + health profile into a real
+cart on Instacart. The product loop: **sign in (Discord) → set monthly budget + household size →
+set dietary needs → pick a nearby retailer → request a plan → async engine generates a budget-fit
+cart with a nutrition summary (calories/protein per day, % organic) → open it as an Instacart
+cart → check out.** Scoped 2026-06-10; revisit when the MVP ships.
+
+**Onboarding ships simple; experimentation comes later (final decision 2026-06-10).** MVP launches
+with household **count** only — the engine derives per-person defaults from it. Per-person body
+stats (weight, height, goal, activity → real calorie/macro targets) is a future **variant B**
+built behind a runtime flag on `main` — never a parallel git branch (the Expo binary can't
+branch-split; flags are the only mechanism that works on both apps). Funnel/product events
+(onboarding steps, plan generated/regenerated, sent-to-Instacart) land as their own early slice —
+they're valuable at any traffic level and double as the plan engine's quality signals. Run the
+actual A/B only when traffic can power it. Tooling candidate: PostHog (flags + experiments +
+events; goes through `dependency-auditor` before install).
+
+**Instacart integration (final decision 2026-06-10): Option A — IDP Public API** (products-link
+handoff). Ship the MVP and get users; the Catalog/Connect API (real per-store products, prices,
+availability — partner-gated) is a deferred swap that must NOT change the user-facing flow
+(store selection already feeds the plan). Consequences to honor everywhere:
+- **No catalog/price/availability access.** The plan engine prices from our **own**
+  food/nutrition model — all prices are ESTIMATES. Surface honestly ("estimated until
+  checkout"), keep a small budget buffer, accept substitutions/unavailability at checkout.
+- The engine receives the picked store's `retailer_key` and targets the products link at it.
+  Instacart keeps a **separate cart per retailer**.
+- No user-level Instacart OAuth anywhere in MVP. Affiliate webhook stays idempotent
+  (dedup on `instacartEventId`).
+
+Design source: Figma `Gczrt4Bi3E9zR41Q1Jnxlh` ("Wholesum — Wireframe · Spruce & Mint", 6 screens)
++ the Notion 🥬 Wholesum page (palette tokens, shape/type rules). Deltas applied to the wireframe:
+the "Connect Instacart" screen is cut (no user-level OAuth exists in the products-link
+architecture — returns with the Connect API post-MVP); its slot becomes the household step
+(A/B variants above); plan screen drops item editing (✕ / add-item) for a Regenerate action and
+gains generating/failed states; "Connected" store badge → "Selected"; store distance optional
+(no Places provider in MVP); delivery-fees line is an estimate.
+
+### MVP (in dependency order — route work per the Domains table)
+
+| # | Feature | What ships | Domains | Status |
+|---|---------|------------|---------|--------|
+| 1 | Foundation | Drizzle schema (profiles · plans · conversions), Better Auth 1.6 + Discord OAuth, web/expo wiring | db, auth | ✅ done |
+| 2 | Profiles + onboarding | `profiles` keeps `householdSize`; budget moves weekly → monthly (`monthlyBudgetCents`). `profiles` router: get/upsert. Onboarding screens 1–3 (budget hero, household count, dietary needs) per the Figma wireframe + deltas. Web first; mobile parity and funnel instrumentation (PostHog) are their own follow-up slices | db → validators → api → web | next |
+| 3 | Plan request + lifecycle | `plan` router: create (→ `pending`, enqueue SQS), get/list, status, regenerate, cancel. `PlanPayload` **v1** zod schema in validators (versioned — see engine notes); input snapshot = household + members | validators → api → web, mobile | next (roadmap #2) |
+| 4 | Stores | `stores` router: nearby retailers via Instacart `get_nearby_retailers`; retailer choice stored on the plan (`retailerKey`) | integration → api → web, mobile | later in MVP |
+| 5 | Plan engine | SQS worker: Claude on Bedrock generates a budget-fit shopping list + nutrition summary (household calories/day, protein/day, % organic, item count) from the household snapshot + `retailerKey`. Prices come from our **own model — estimates only** (no Instacart catalog access in MVP); UI frames totals as "estimated until checkout" with a small buffer. Meals are generated internally but **not surfaced in MVP UI** (list + nutrition tiles only). Behind a `PlanEngine.generate(input) → PlanPayload` seam; persists input snapshot + engine/model tag; failures are **visible** (`failed` status), never a degraded fallback plan. **Security note (2026-06-10 review):** `dietaryRestrictions` entries are untrusted user text — pass them to the LLM as a structured, demarcated input slot, never interpolated inline into prompt prose | worker | later in MVP |
+| 6 | Cart handoff | Ready plan → Instacart products-link the user checks out on. (The "orders" module's MVP scope is this handoff — not order tracking) | integration → api → web, mobile | later in MVP |
+
+**Plans are read-only in MVP**: accept or regenerate — no item editing. **On-demand only**: no
+scheduled generation. Regenerations and plan→conversion attribution are the quality signals the
+post-MVP engine work depends on; log them from day one.
+
+### Post-MVP (in rough priority order)
+
+- **Affiliate webhook + conversions** — exactly-once processor in the worker (dedup on
+  `instacartEventId`); revenue attribution per plan/user.
+- **Engine cost-optimization ladder** — gated on an eval harness replaying logged plan inputs and
+  scored by accept/regenerate + conversion signals. Rungs, in order of effort: prompt caching
+  (stable system + retailer-catalog prefix) → model right-sizing (Haiku-class) → Batch API (50%,
+  pairs with weekly auto-gen) → hybrid (algorithm shortlists candidates, LLM personalizes) →
+  fully algorithmic with LLM fallback. Don't start this ladder until plan-generation spend is a
+  real line item (~$0.04–0.08/plan on Sonnet-class today).
+- **Plan editing** — item swaps before checkout (needs plan-item granularity in schema + API).
+- **Weekly auto-generation** — scheduling + notifications; generation runs through the Batch API.
+- **Order tracking** — anything beyond the handoff link.
+- **Catalog/Connect API swap** — real per-store products, prices, and availability (replaces the
+  estimate model); requires an Instacart partner relationship. Must slot in behind the existing
+  flow — store selection already feeds the plan engine, so this is an engine/integration swap,
+  not a UX change.
+
+---
+
 ## Domains (non-overlapping globs)
 
 Each domain owns a disjoint slice of the tree. A sub-agent is dispatched against **exactly one**

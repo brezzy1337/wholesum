@@ -11,7 +11,7 @@ export const profiles = pgTable("profiles", (t) => ({
     .references(() => user.id, { onDelete: "cascade" }),
   dietaryRestrictions: t.text({}).array(),
   householdSize: t.integer().notNull().default(1),
-  weeklyBudgetCents: t.integer(),
+  monthlyBudgetCents: t.integer(),
   createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
   updatedAt: t
     .timestamp({ mode: "date", withTimezone: true })
