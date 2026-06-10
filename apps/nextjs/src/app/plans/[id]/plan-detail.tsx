@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -129,6 +129,21 @@ function LoadedPlan(props: { plan: Plan }) {
     }),
   );
 
+  const [cartFallbackUrl, setCartFallbackUrl] = useState<string | null>(null);
+
+  const createCartLink = useMutation(
+    trpc.orders.createCartLink.mutationOptions({
+      onSuccess: ({ url }) => {
+        const opened = window.open(url, "_blank", "noopener,noreferrer");
+        setCartFallbackUrl(opened ? null : url);
+      },
+    }),
+  );
+
+  // On a ready plan, checkout is the primary action; Regenerate is secondary.
+  const isReadyWithPayload = plan.status === "ready" && plan.payload != null;
+  const RegenerateButton = isReadyWithPayload ? SecondaryButton : PrimaryButton;
+
   const regenerateSection = (
     <div className="flex flex-col gap-3">
       {regeneratePlan.error ? (
@@ -136,7 +151,7 @@ function LoadedPlan(props: { plan: Plan }) {
           Could not start a new plan. Please try again.
         </p>
       ) : null}
-      <PrimaryButton
+      <RegenerateButton
         onClick={() => regeneratePlan.mutate({ id: plan.id })}
         disabled={regeneratePlan.isPending}
       >
@@ -147,7 +162,7 @@ function LoadedPlan(props: { plan: Plan }) {
             : plan.status === "failed"
               ? "Try again"
               : "Generate again"}
-      </PrimaryButton>
+      </RegenerateButton>
     </div>
   );
 
@@ -240,6 +255,36 @@ function LoadedPlan(props: { plan: Plan }) {
       ) : null}
 
       <ShoppingList payload={plan.payload} />
+
+      <div className="flex flex-col gap-3">
+        {createCartLink.error ? (
+          <p className="text-negative text-sm">
+            {createCartLink.error.message}
+          </p>
+        ) : null}
+        <PrimaryButton
+          onClick={() => createCartLink.mutate({ id: plan.id })}
+          disabled={createCartLink.isPending}
+        >
+          {createCartLink.isPending
+            ? "Preparing your cart…"
+            : "Open in Instacart"}
+        </PrimaryButton>
+        {cartFallbackUrl ? (
+          <a
+            href={cartFallbackUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-spruce text-center text-sm font-semibold"
+          >
+            Your cart link is ready — open it here
+          </a>
+        ) : null}
+        <p className="text-content-tertiary text-xs">
+          You&apos;ll pick your store and check out on Instacart. Prices are
+          estimates until checkout — items may vary by store.
+        </p>
+      </div>
 
       {regenerateSection}
     </div>
