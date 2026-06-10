@@ -4,16 +4,27 @@ import { TRPCError } from "@trpc/server";
 import type { db } from "@acme/db/client";
 import { and, desc, eq, inArray } from "@acme/db";
 import { plans, profiles } from "@acme/db/schema";
-import type { PlanInputSnapshot, PlanPayload } from "@acme/validators";
+import type {
+  PlanInputSnapshot,
+  PlanPayload,
+  PlanStatus,
+} from "@acme/validators";
 import {
   CreatePlanInputSchema,
   PlanIdInputSchema,
   PlanInputSnapshotSchema,
   PlanPayloadSchema,
+  PlanStatusSchema,
 } from "@acme/validators";
 
 import { enqueuePlanGeneration } from "../services/plan-queue";
 import { protectedProcedure } from "../trpc";
+
+/** Statuses the engine still owns — no regenerate from, cancel only from. */
+const IN_FLIGHT_STATUSES: PlanStatus[] = [
+  PlanStatusSchema.enum.pending,
+  PlanStatusSchema.enum.processing,
+];
 
 /**
  * Load the caller's profile and require it to be onboarding-complete (budget
@@ -72,7 +83,9 @@ export const planRouter = {
       }
 
       await enqueuePlanGeneration(plan.id);
-      return plan;
+      // Re-type the jsonb columns so the client contract matches `get`
+      // (drizzle types them `unknown`); a fresh row never has a payload.
+      return { ...plan, input: snapshot, payload: null };
     }),
 
   get: protectedProcedure
@@ -150,7 +163,7 @@ export const planRouter = {
       if (!source) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Plan not found" });
       }
-      if (source.status === "pending" || source.status === "processing") {
+      if (IN_FLIGHT_STATUSES.includes(source.status)) {
         throw new TRPCError({
           code: "CONFLICT",
           message: "Plan is still being generated",
@@ -181,7 +194,8 @@ export const planRouter = {
       }
 
       await enqueuePlanGeneration(plan.id);
-      return plan;
+      // Same typed contract as `create`.
+      return { ...plan, input: snapshot, payload: null };
     }),
 
   cancel: protectedProcedure
@@ -191,12 +205,12 @@ export const planRouter = {
       // UPDATE, so a concurrent transition can't be clobbered.
       const [cancelled] = await ctx.db
         .update(plans)
-        .set({ status: "cancelled" })
+        .set({ status: PlanStatusSchema.enum.cancelled })
         .where(
           and(
             eq(plans.id, input.id),
             eq(plans.userId, ctx.session.user.id),
-            inArray(plans.status, ["pending", "processing"]),
+            inArray(plans.status, IN_FLIGHT_STATUSES),
           ),
         )
         .returning();

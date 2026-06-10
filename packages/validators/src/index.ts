@@ -54,13 +54,14 @@ export const PlanPayloadSchema = z.object({
     caloriesPerDayPerPerson: z.int().min(0),
     proteinGramsPerDayPerPerson: z.int().min(0),
     percentOrganic: z.number().min(0).max(100),
-    itemCount: z.int().min(0),
+    // `items` requires at least one entry, so the count is at least 1.
+    itemCount: z.int().min(1),
   }),
   // Estimate from our own pricing model — "estimated until checkout" in UI.
   estimatedTotalCents: z.int().min(0),
   // Engine/model identifier persisted for eval/attribution,
   // e.g. "bedrock:claude-sonnet-x".
-  engineTag: z.string().min(1),
+  engineTag: z.string().min(1).max(100),
 });
 
 export type PlanPayload = z.infer<typeof PlanPayloadSchema>;
