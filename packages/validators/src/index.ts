@@ -1,8 +1,9 @@
 import { z } from "zod/v4";
 
-export const unused = z.string().describe(
-  `This lib is currently not used as we use drizzle-zod for simple schemas
-   But as your application grows and you need other validators to share
-   with back and frontend, you can put them in here
-  `,
-);
+export const UpsertProfileSchema = z.object({
+  monthlyBudgetCents: z.int().positive().nullable(),
+  householdSize: z.int().min(1).max(20),
+  dietaryRestrictions: z.array(z.string().trim().min(1).max(100)).max(50),
+});
+
+export type UpsertProfileInput = z.infer<typeof UpsertProfileSchema>;
