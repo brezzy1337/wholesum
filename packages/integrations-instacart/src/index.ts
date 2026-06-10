@@ -4,8 +4,9 @@ import { z } from "zod/v4";
  * Minimal Instacart Developer Platform (IDP) Public API client.
  *
  * Contract source: docs.instacart.com, verified 2026-06-10.
- * `GET {baseUrl}/idp/v1/retailers?postal_code=<string>&country_code=<US|CA>`
- * with `Authorization: Bearer <api key>`.
+ * - `GET {baseUrl}/idp/v1/retailers?postal_code=<string>&country_code=<US|CA>`
+ * - `POST {baseUrl}/idp/v1/products/products_link`
+ * Both with `Authorization: Bearer <api key>`.
  *
  * Production and development environments use SEPARATE API keys — a key for
  * one base URL will not work against the other. Server-side use only; the API
@@ -60,6 +61,38 @@ export interface NearbyRetailer {
   retailerLogoUrl: string | null;
 }
 
+/**
+ * 200 response of `POST /idp/v1/products/products_link`. The URL is handed to
+ * browsers downstream, so we require https as defence in depth.
+ */
+const ProductsLinkResponseSchema = z.object({
+  products_link_url: z.string().startsWith("https://"),
+});
+
+/** One line item on a products link. `name` is a product search term. */
+export interface ProductsLinkLineItem {
+  name: string;
+  /** Optional display label shown to the user instead of `name`. */
+  displayText?: string;
+  /** Defaults to 1 on the Instacart side. */
+  quantity?: number;
+  /** Defaults to "each" on the Instacart side. */
+  unit?: string;
+}
+
+export interface CreateProductsLinkParams {
+  title: string;
+  lineItems: ProductsLinkLineItem[];
+  /** Days until the link expires; the API caps this at 365. */
+  expiresInDays?: number;
+  instructions?: string[];
+}
+
+export interface ProductsLink {
+  /** The shareable Instacart shopping-list page URL (always https). */
+  url: string;
+}
+
 export interface InstacartClientConfig {
   apiKey: string;
   /** Defaults to {@link INSTACART_PROD_BASE_URL}. */
@@ -75,6 +108,16 @@ export interface InstacartClient {
   getNearbyRetailers(
     params: GetNearbyRetailersParams,
   ): Promise<NearbyRetailer[]>;
+  /**
+   * Creates an Instacart shopping-list page from a list of product search
+   * terms (`POST /idp/v1/products/products_link`).
+   *
+   * NOTE: the public products-link API has NO retailer/retailer_key field —
+   * store selection happens on the Instacart page itself. A plan's stored
+   * `retailerKey` cannot target this link at a specific store; revisit with
+   * the post-MVP Catalog/Connect API swap.
+   */
+  createProductsLink(params: CreateProductsLinkParams): Promise<ProductsLink>;
 }
 
 /** The only hosts this client will ever talk to (SSRF guard on config). */
@@ -106,53 +149,75 @@ export function createInstacartClient(
   // `origin` normalizes away trailing slashes/paths from operator config.
   const baseUrl = parsedBaseUrl.origin;
 
+  /**
+   * Shared fetch scaffolding: auth header, 10s timeout, terse errors (status
+   * line only — never the key, headers, or response bodies). When `jsonBody`
+   * is provided the request is sent as JSON; otherwise no body or
+   * Content-Type header is sent.
+   */
+  async function requestJson(
+    path: string,
+    init: { method: "GET" | "POST"; jsonBody?: unknown },
+  ): Promise<{ status: number; body: unknown }> {
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}${path}`, {
+        method: init.method,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+          ...(init.jsonBody !== undefined && {
+            "Content-Type": "application/json",
+          }),
+        },
+        ...(init.jsonBody !== undefined && {
+          body: JSON.stringify(init.jsonBody),
+        }),
+        signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+      });
+    } catch {
+      throw new InstacartApiError(
+        "Instacart request failed before a response was received (network error or timeout)",
+        null,
+      );
+    }
+
+    if (!response.ok) {
+      throw new InstacartApiError(
+        `Instacart request failed: ${response.status} ${response.statusText}`,
+        response.status,
+      );
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new InstacartApiError(
+        `Instacart returned a malformed response (status ${response.status}, body is not valid JSON)`,
+        response.status,
+      );
+    }
+
+    return { status: response.status, body };
+  }
+
   return {
     async getNearbyRetailers(params) {
       const query = new URLSearchParams({
         postal_code: params.postalCode,
         country_code: params.countryCode,
       });
-      const url = `${baseUrl}/idp/v1/retailers?${query.toString()}`;
-
-      let response: Response;
-      try {
-        response = await fetch(url, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            Accept: "application/json",
-          },
-          signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-        });
-      } catch {
-        throw new InstacartApiError(
-          "Instacart request failed before a response was received (network error or timeout)",
-          null,
-        );
-      }
-
-      if (!response.ok) {
-        throw new InstacartApiError(
-          `Instacart request failed: ${response.status} ${response.statusText}`,
-          response.status,
-        );
-      }
-
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        throw new InstacartApiError(
-          `Instacart returned a malformed response (status ${response.status}, body is not valid JSON)`,
-          response.status,
-        );
-      }
+      const { status, body } = await requestJson(
+        `/idp/v1/retailers?${query.toString()}`,
+        { method: "GET" },
+      );
 
       const parsed = NearbyRetailersResponseSchema.safeParse(body);
       if (!parsed.success) {
         throw new InstacartApiError(
-          `Instacart returned a malformed response (status ${response.status}, unexpected body shape)`,
-          response.status,
+          `Instacart returned a malformed response (status ${status}, unexpected body shape)`,
+          status,
         );
       }
 
@@ -170,6 +235,44 @@ export function createInstacartClient(
           },
         ];
       });
+    },
+
+    async createProductsLink(params) {
+      // NOTE: the public products-link contract has no retailer/retailer_key
+      // field — the user picks the store on the Instacart page itself.
+      const requestBody = {
+        title: params.title,
+        link_type: "shopping_list",
+        ...(params.expiresInDays !== undefined && {
+          expires_in: params.expiresInDays,
+        }),
+        ...(params.instructions !== undefined && {
+          instructions: params.instructions,
+        }),
+        line_items: params.lineItems.map((item) => ({
+          name: item.name,
+          ...(item.quantity !== undefined && { quantity: item.quantity }),
+          ...(item.unit !== undefined && { unit: item.unit }),
+          ...(item.displayText !== undefined && {
+            display_text: item.displayText,
+          }),
+        })),
+      };
+
+      const { status, body } = await requestJson(
+        "/idp/v1/products/products_link",
+        { method: "POST", jsonBody: requestBody },
+      );
+
+      const parsed = ProductsLinkResponseSchema.safeParse(body);
+      if (!parsed.success) {
+        throw new InstacartApiError(
+          `Instacart returned a malformed response (status ${status}, unexpected body shape)`,
+          status,
+        );
+      }
+
+      return { url: parsed.data.products_link_url };
     },
   };
 }

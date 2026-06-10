@@ -129,6 +129,28 @@ function LoadedPlan(props: { plan: Plan }) {
     }),
   );
 
+  const createCartLink = useMutation(
+    trpc.orders.createCartLink.mutationOptions({
+      onSuccess: ({ url }) => {
+        window.open(url, "_blank", "noopener,noreferrer");
+      },
+    }),
+  );
+  // Reuse the minted link on repeat clicks instead of re-minting (links
+  // expire on their own; one per plan view is plenty).
+  const cartUrl = createCartLink.data?.url ?? null;
+  const openCart = () => {
+    if (cartUrl) {
+      window.open(cartUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    createCartLink.mutate({ id: plan.id });
+  };
+
+  // On a ready plan, checkout is the primary action; Regenerate is secondary.
+  const isReadyWithPayload = plan.status === "ready" && plan.payload != null;
+  const RegenerateButton = isReadyWithPayload ? SecondaryButton : PrimaryButton;
+
   const regenerateSection = (
     <div className="flex flex-col gap-3">
       {regeneratePlan.error ? (
@@ -136,7 +158,7 @@ function LoadedPlan(props: { plan: Plan }) {
           Could not start a new plan. Please try again.
         </p>
       ) : null}
-      <PrimaryButton
+      <RegenerateButton
         onClick={() => regeneratePlan.mutate({ id: plan.id })}
         disabled={regeneratePlan.isPending}
       >
@@ -147,7 +169,7 @@ function LoadedPlan(props: { plan: Plan }) {
             : plan.status === "failed"
               ? "Try again"
               : "Generate again"}
-      </PrimaryButton>
+      </RegenerateButton>
     </div>
   );
 
@@ -240,6 +262,37 @@ function LoadedPlan(props: { plan: Plan }) {
       ) : null}
 
       <ShoppingList payload={plan.payload} />
+
+      <div className="flex flex-col gap-3">
+        {createCartLink.error ? (
+          <p className="text-negative text-sm">
+            {createCartLink.error.message}
+          </p>
+        ) : null}
+        <PrimaryButton onClick={openCart} disabled={createCartLink.isPending}>
+          {createCartLink.isPending
+            ? "Preparing your cart…"
+            : cartUrl
+              ? "Open your cart again"
+              : "Open in Instacart"}
+        </PrimaryButton>
+        {cartUrl ? (
+          // Always offered once minted — covers blocked popups (Safari can
+          // report success even when it blocked the tab).
+          <a
+            href={cartUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-spruce text-center text-sm font-semibold"
+          >
+            New tab didn&apos;t open? Use your cart link
+          </a>
+        ) : null}
+        <p className="text-content-tertiary text-xs">
+          You&apos;ll pick your store and check out on Instacart. Prices are
+          estimates until checkout — items may vary by store.
+        </p>
+      </div>
 
       {regenerateSection}
     </div>
