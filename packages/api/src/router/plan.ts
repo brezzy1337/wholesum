@@ -2,13 +2,13 @@ import type { TRPCRouterRecord } from "@trpc/server";
 import { TRPCError } from "@trpc/server";
 
 import type { db } from "@acme/db/client";
-import { and, desc, eq, inArray } from "@acme/db";
-import { plans, profiles } from "@acme/db/schema";
 import type {
   PlanInputSnapshot,
   PlanPayload,
   PlanStatus,
 } from "@acme/validators";
+import { and, desc, eq, inArray } from "@acme/db";
+import { plans, profiles } from "@acme/db/schema";
 import {
   CreatePlanInputSchema,
   PlanIdInputSchema,
@@ -17,7 +17,10 @@ import {
   PlanStatusSchema,
 } from "@acme/validators";
 
-import { enqueuePlanGeneration } from "../services/plan-queue";
+import {
+  enqueuePlanGeneration,
+  PlanEnqueueError,
+} from "../services/plan-queue";
 import { protectedProcedure } from "../trpc";
 
 /** Statuses the engine still owns — no regenerate from, cancel only from. */
@@ -43,6 +46,41 @@ async function getCompleteProfile(database: typeof db, userId: string) {
     });
   }
   return profile;
+}
+
+/**
+ * Enqueue a freshly inserted plan, making enqueue failure VISIBLE (project
+ * rule: failures are visible, never silent). On `PlanEnqueueError` the row is
+ * flipped to `failed` (conditionally — only while still `pending`, so a
+ * concurrent transition can't be clobbered) and the failed row is returned;
+ * the UI's failed state + Regenerate is the recovery path, so this is not a
+ * throw. Any other error propagates unchanged.
+ */
+async function enqueueOrMarkFailed(
+  database: typeof db,
+  plan: typeof plans.$inferSelect,
+) {
+  try {
+    await enqueuePlanGeneration(plan.id);
+    return plan;
+  } catch (error) {
+    if (!(error instanceof PlanEnqueueError)) throw error;
+
+    const [failed] = await database
+      .update(plans)
+      .set({
+        status: PlanStatusSchema.enum.failed,
+        error: "Could not queue this plan for generation. Try regenerating.",
+      })
+      .where(
+        and(
+          eq(plans.id, plan.id),
+          eq(plans.status, PlanStatusSchema.enum.pending),
+        ),
+      )
+      .returning();
+    return failed ?? plan;
+  }
 }
 
 function buildSnapshot(
@@ -82,10 +120,10 @@ export const planRouter = {
         });
       }
 
-      await enqueuePlanGeneration(plan.id);
+      const result = await enqueueOrMarkFailed(ctx.db, plan);
       // Re-type the jsonb columns so the client contract matches `get`
       // (drizzle types them `unknown`); a fresh row never has a payload.
-      return { ...plan, input: snapshot, payload: null };
+      return { ...result, input: snapshot, payload: null };
     }),
 
   get: protectedProcedure
@@ -193,9 +231,9 @@ export const planRouter = {
         });
       }
 
-      await enqueuePlanGeneration(plan.id);
+      const result = await enqueueOrMarkFailed(ctx.db, plan);
       // Same typed contract as `create`.
-      return { ...plan, input: snapshot, payload: null };
+      return { ...result, input: snapshot, payload: null };
     }),
 
   cancel: protectedProcedure
