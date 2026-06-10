@@ -1,7 +1,7 @@
 import type { TRPCRouterRecord } from "@trpc/server";
 import { TRPCError } from "@trpc/server";
 
-import { eq } from "@acme/db";
+import { eq, sql } from "@acme/db";
 import { profiles } from "@acme/db/schema";
 import { UpsertProfileSchema } from "@acme/validators";
 
@@ -31,6 +31,7 @@ export const profilesRouter = {
             monthlyBudgetCents: input.monthlyBudgetCents,
             householdSize: input.householdSize,
             dietaryRestrictions: input.dietaryRestrictions,
+            updatedAt: sql`now()`,
           },
         })
         .returning();
