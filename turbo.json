@@ -47,6 +47,8 @@
   },
   "globalEnv": [
     "POSTGRES_URL",
+    "INSTACART_API_KEY",
+    "INSTACART_API_BASE_URL",
     "AUTH_DISCORD_ID",
     "AUTH_DISCORD_SECRET",
     "AUTH_REDIRECT_PROXY_URL",

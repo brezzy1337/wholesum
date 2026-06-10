@@ -88,3 +88,20 @@ export type CreatePlanInput = z.infer<typeof CreatePlanInputSchema>;
 export const PlanIdInputSchema = z.object({
   id: z.uuid(),
 });
+
+/**
+ * Input for the stores.nearby lookup (Instacart IDP get_nearby_retailers).
+ * Permissive postal-code shape: US ZIP or Canadian postal code — the upstream
+ * API is the real validator; we only bound and sanitize.
+ */
+export const NearbyRetailersInputSchema = z.object({
+  postalCode: z
+    .string()
+    .trim()
+    .min(3)
+    .max(10)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9 -]*$/, "Invalid postal code"),
+  countryCode: z.enum(["US", "CA"]).default("US"),
+});
+
+export type NearbyRetailersInput = z.infer<typeof NearbyRetailersInputSchema>;
