@@ -16,6 +16,9 @@ import { createInstacartClient } from "@acme/integrations-instacart";
  * - `INSTACART_API_BASE_URL` (optional) — defaults to the production base
  *   URL. When using a dev key, point this at the dev server
  *   (`INSTACART_DEV_BASE_URL` from `@acme/integrations-instacart`).
+ *
+ * Cached for the container lifetime — rotating `INSTACART_API_KEY` (or
+ * changing the base URL) requires a Lambda cold start / process restart.
  */
 let client: InstacartClient | null = null;
 

@@ -23,7 +23,8 @@ const DEFAULT_TIMEOUT_MS = 10_000;
  * `status` is the HTTP status of the response, or `null` when the failure
  * happened before a response existed (network error, timeout) or while
  * reading it. Messages are intentionally terse — they never include the API
- * key, request headers, or raw response bodies.
+ * key, request headers, or raw response bodies. The HTTP status line
+ * (status code + reason phrase) may appear; nothing beyond it.
  */
 export class InstacartApiError extends Error {
   readonly status: number | null;
@@ -76,11 +77,34 @@ export interface InstacartClient {
   ): Promise<NearbyRetailer[]>;
 }
 
+/** The only hosts this client will ever talk to (SSRF guard on config). */
+const ALLOWED_HOSTS = new Set(
+  [INSTACART_PROD_BASE_URL, INSTACART_DEV_BASE_URL].map(
+    (u) => new URL(u).host,
+  ),
+);
+
 export function createInstacartClient(
   config: InstacartClientConfig,
 ): InstacartClient {
   const { apiKey } = config;
-  const baseUrl = config.baseUrl ?? INSTACART_PROD_BASE_URL;
+
+  let parsedBaseUrl: URL;
+  try {
+    parsedBaseUrl = new URL(config.baseUrl ?? INSTACART_PROD_BASE_URL);
+  } catch {
+    throw new Error("Invalid Instacart base URL configuration");
+  }
+  if (
+    parsedBaseUrl.protocol !== "https:" ||
+    !ALLOWED_HOSTS.has(parsedBaseUrl.host)
+  ) {
+    throw new Error(
+      "Instacart base URL must be https and a known Instacart host",
+    );
+  }
+  // `origin` normalizes away trailing slashes/paths from operator config.
+  const baseUrl = parsedBaseUrl.origin;
 
   return {
     async getNearbyRetailers(params) {
@@ -134,11 +158,15 @@ export function createInstacartClient(
 
       return parsed.data.retailers.flatMap((retailer) => {
         if (!retailer.retailer_key || !retailer.name) return [];
+        // Defence in depth for future UI rendering: only https logo URLs.
+        const logoUrl = retailer.retailer_logo_url?.startsWith("https://")
+          ? retailer.retailer_logo_url
+          : null;
         return [
           {
             retailerKey: retailer.retailer_key,
             name: retailer.name,
-            retailerLogoUrl: retailer.retailer_logo_url ?? null,
+            retailerLogoUrl: logoUrl,
           },
         ];
       });
