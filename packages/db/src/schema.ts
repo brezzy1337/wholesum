@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { check, index, pgEnum, pgTable } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
@@ -41,8 +42,12 @@ export const plans = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     status: planStatus().notNull().default("pending"),
     retailerKey: t.text(),
+    input: t.jsonb().notNull(),
     payload: t.jsonb(),
     error: t.text(),
+    regeneratedFromPlanId: t
+      .uuid()
+      .references((): AnyPgColumn => plans.id, { onDelete: "set null" }),
     createdAt: t.timestamp({ withTimezone: true }).defaultNow().notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })
