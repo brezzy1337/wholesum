@@ -2,13 +2,13 @@ import type { TRPCRouterRecord } from "@trpc/server";
 import { TRPCError } from "@trpc/server";
 
 import type { db } from "@acme/db/client";
-import { and, desc, eq, inArray } from "@acme/db";
-import { plans, profiles } from "@acme/db/schema";
 import type {
   PlanInputSnapshot,
   PlanPayload,
   PlanStatus,
 } from "@acme/validators";
+import { and, desc, eq, gte, inArray } from "@acme/db";
+import { plans, profiles } from "@acme/db/schema";
 import {
   CreatePlanInputSchema,
   PlanIdInputSchema,
@@ -17,7 +17,10 @@ import {
   PlanStatusSchema,
 } from "@acme/validators";
 
-import { enqueuePlanGeneration } from "../services/plan-queue";
+import {
+  enqueuePlanGeneration,
+  PlanEnqueueError,
+} from "../services/plan-queue";
 import { protectedProcedure } from "../trpc";
 
 /** Statuses the engine still owns — no regenerate from, cancel only from. */
@@ -25,6 +28,30 @@ const IN_FLIGHT_STATUSES: PlanStatus[] = [
   PlanStatusSchema.enum.pending,
   PlanStatusSchema.enum.processing,
 ];
+
+/**
+ * Per-user spend ceiling: each generated plan is one Bedrock call
+ * (~$0.04–0.08), so plan creation is rate-capped before the queue is ever
+ * wired (2026-06-10 security review — precondition for the infra slice).
+ */
+const MAX_PLANS_PER_HOUR = 10;
+
+async function enforcePlanRateLimit(
+  database: typeof db,
+  userId: string,
+): Promise<void> {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const recentCount = await database.$count(
+    plans,
+    and(eq(plans.userId, userId), gte(plans.createdAt, oneHourAgo)),
+  );
+  if (recentCount >= MAX_PLANS_PER_HOUR) {
+    throw new TRPCError({
+      code: "TOO_MANY_REQUESTS",
+      message: "You've hit the hourly plan limit — try again in a bit.",
+    });
+  }
+}
 
 /**
  * Load the caller's profile and require it to be onboarding-complete (budget
@@ -45,6 +72,47 @@ async function getCompleteProfile(database: typeof db, userId: string) {
   return profile;
 }
 
+/**
+ * Enqueue a freshly inserted plan, making enqueue failure VISIBLE (project
+ * rule: failures are visible, never silent). On `PlanEnqueueError` the row is
+ * flipped to `failed` (conditionally — only while still `pending`, so a
+ * concurrent transition can't be clobbered) and the failed row is returned;
+ * the UI's failed state + Regenerate is the recovery path, so this is not a
+ * throw. Any other error propagates unchanged.
+ */
+async function enqueueOrMarkFailed(
+  database: typeof db,
+  plan: typeof plans.$inferSelect,
+) {
+  try {
+    await enqueuePlanGeneration(plan.id);
+    return plan;
+  } catch (error) {
+    if (!(error instanceof PlanEnqueueError)) throw error;
+
+    const [failed] = await database
+      .update(plans)
+      .set({
+        status: PlanStatusSchema.enum.failed,
+        error: "Could not queue this plan for generation. Try regenerating.",
+      })
+      .where(
+        and(
+          eq(plans.id, plan.id),
+          eq(plans.status, PlanStatusSchema.enum.pending),
+        ),
+      )
+      .returning();
+    if (failed) return failed;
+    // The conditional UPDATE missed — another transition (e.g. a cancel) won
+    // the race. Return the row's CURRENT state, never the stale in-memory one.
+    const current = await database.query.plans.findFirst({
+      where: eq(plans.id, plan.id),
+    });
+    return current ?? plan;
+  }
+}
+
 function buildSnapshot(
   profile: Awaited<ReturnType<typeof getCompleteProfile>>,
   retailerKey: string | null,
@@ -63,6 +131,7 @@ export const planRouter = {
   create: protectedProcedure
     .input(CreatePlanInputSchema)
     .mutation(async ({ ctx, input }) => {
+      await enforcePlanRateLimit(ctx.db, ctx.session.user.id);
       const profile = await getCompleteProfile(ctx.db, ctx.session.user.id);
       const snapshot = buildSnapshot(profile, input.retailerKey ?? null);
 
@@ -82,10 +151,10 @@ export const planRouter = {
         });
       }
 
-      await enqueuePlanGeneration(plan.id);
+      const result = await enqueueOrMarkFailed(ctx.db, plan);
       // Re-type the jsonb columns so the client contract matches `get`
       // (drizzle types them `unknown`); a fresh row never has a payload.
-      return { ...plan, input: snapshot, payload: null };
+      return { ...result, input: snapshot, payload: null };
     }),
 
   get: protectedProcedure
@@ -170,6 +239,8 @@ export const planRouter = {
         });
       }
 
+      await enforcePlanRateLimit(ctx.db, ctx.session.user.id);
+
       // Fresh snapshot from the CURRENT profile (not a copy of the source
       // snapshot) so profile edits take effect; the retailer choice carries
       // over from the source plan.
@@ -193,9 +264,9 @@ export const planRouter = {
         });
       }
 
-      await enqueuePlanGeneration(plan.id);
+      const result = await enqueueOrMarkFailed(ctx.db, plan);
       // Same typed contract as `create`.
-      return { ...plan, input: snapshot, payload: null };
+      return { ...result, input: snapshot, payload: null };
     }),
 
   cancel: protectedProcedure

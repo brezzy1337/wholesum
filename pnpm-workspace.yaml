@@ -8,6 +8,9 @@ catalog:
   # (its `latest` dist-tag is the 1.4 line). Revisit when a 1.6 CLI lands.
   "@better-auth/cli": 1.4.22
   "@better-auth/expo": 1.6.14
+  # Exact pin per dependency-auditor 2026-06-10 (release-age cooldown:
+  # 3.1064+ shipped <3 days ago). Bump deliberately.
+  "@aws-sdk/client-sqs": 3.1063.0
   "@eslint/js": ^9.38.0
   "@tailwindcss/postcss": ^4.1.16
   "@tailwindcss/vite": ^4.1.16
