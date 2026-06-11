@@ -15,7 +15,7 @@ the main session how to **delegate work across domains**.
 ## Product scope — feature list
 
 *"Eat well, spend smart"* — an AI grocery planner that turns a budget + health profile into a real
-cart on Instacart. The product loop: **sign in (Discord) → set monthly budget + household size →
+cart on Instacart. The product loop: **sign in (Google) → set monthly budget + household size →
 set dietary needs → pick a nearby retailer → request a plan → async engine generates a budget-fit
 cart with a nutrition summary (calories/protein per day, % organic) → open it as an Instacart
 cart → check out.** Scoped 2026-06-10; revisit when the MVP ships.
@@ -54,7 +54,7 @@ gains generating/failed states; "Connected" store badge → "Selected"; store di
 
 | # | Feature | What ships | Domains | Status |
 |---|---------|------------|---------|--------|
-| 1 | Foundation | Drizzle schema (profiles · plans · conversions), Better Auth 1.6 + Discord OAuth, web/expo wiring | db, auth | ✅ done |
+| 1 | Foundation | Drizzle schema (profiles · plans · conversions), Better Auth 1.6 + Google OAuth (Discord at MVP build; swapped 2026-06-11), web/expo wiring | db, auth | ✅ done |
 | 2 | Profiles + onboarding | `profiles` keeps `householdSize`; budget moves weekly → monthly (`monthlyBudgetCents`). `profiles` router: get/upsert. Onboarding screens 1–3 (budget hero, household count, dietary needs) per the Figma wireframe + deltas. Web first; mobile parity and funnel instrumentation (PostHog) are their own follow-up slices | db → validators → api → web | ✅ done |
 | 3 | Plan request + lifecycle | `plan` router: create (→ `pending`, enqueue SQS), get/list, status, regenerate, cancel. `PlanPayload` **v1** zod schema in validators (versioned — see engine notes); input snapshot = household count + budget + dietary + `retailerKey` | validators → api → web, mobile | ✅ done (enqueue is a stub until the worker lands; plan screens are a follow-up slice) |
 | 4 | Stores | `stores` router: nearby retailers via Instacart `get_nearby_retailers`; retailer choice stored on the plan (`retailerKey`) | integration → api → web, mobile | ✅ done (web picker shipped; plans read-only links to it; mobile parity is a follow-up slice) |

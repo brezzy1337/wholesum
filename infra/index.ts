@@ -4,15 +4,12 @@
  *   vpc ─► postgres ─► { planQueue+worker, web }
  *   secrets ──────────────────────────► web
  *
- * Module order below follows that dependency chain.
+ * The barrel re-exports only what `run()` needs for its stage outputs.
+ * Everything else (vpc, secrets, the worker subscriber, the DLQ — and
+ * notably `postgresUrl`, which embeds the DB password and must not leak
+ * into outputs) stays module-internal; those modules are still evaluated
+ * via the import chain below (web ─► queue ─► database/secrets/vpc).
  */
-export { vpc } from "./vpc";
-export {
-  authGoogleId,
-  authGoogleSecret,
-  authSecret,
-  instacartApiKey,
-} from "./secrets";
-export { postgres, postgresUrl } from "./database";
-export { planDlq, planQueue, planWorker } from "./queue";
+export { postgres } from "./database";
+export { planQueue } from "./queue";
 export { web } from "./web";
