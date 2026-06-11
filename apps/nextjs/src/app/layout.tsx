@@ -5,6 +5,7 @@ import { cn } from "@acme/ui";
 import { ThemeProvider, ThemeToggle } from "@acme/ui/theme";
 import { Toaster } from "@acme/ui/toast";
 
+import { AnalyticsProvider } from "~/app/_components/posthog-provider";
 import { env } from "~/env";
 import { TRPCReactProvider } from "~/trpc/react";
 
@@ -57,13 +58,15 @@ export default function RootLayout(props: { children: React.ReactNode }) {
           geistMono.variable,
         )}
       >
-        <ThemeProvider>
-          <TRPCReactProvider>{props.children}</TRPCReactProvider>
-          <div className="absolute right-4 bottom-4">
-            <ThemeToggle />
-          </div>
-          <Toaster />
-        </ThemeProvider>
+        <AnalyticsProvider>
+          <ThemeProvider>
+            <TRPCReactProvider>{props.children}</TRPCReactProvider>
+            <div className="absolute right-4 bottom-4">
+              <ThemeToggle />
+            </div>
+            <Toaster />
+          </ThemeProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   );
