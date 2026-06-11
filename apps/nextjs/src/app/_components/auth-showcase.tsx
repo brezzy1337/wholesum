@@ -17,7 +17,7 @@ export async function AuthShowcase() {
             "use server";
             const res = await auth.api.signInSocial({
               body: {
-                provider: "discord",
+                provider: "google",
                 callbackURL: "/",
               },
             });
@@ -27,7 +27,7 @@ export async function AuthShowcase() {
             redirect(res.url);
           }}
         >
-          Sign in with Discord
+          Sign in with Google
         </Button>
       </form>
     );

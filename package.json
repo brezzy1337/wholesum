@@ -31,6 +31,7 @@
     "@turbo/gen": "2.9.16",
     "dotenv-cli": "^10.0.0",
     "prettier": "catalog:",
+    "sst": "4.15.2",
     "turbo": "2.9.16",
     "typescript": "catalog:"
   },

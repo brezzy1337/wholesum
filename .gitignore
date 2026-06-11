@@ -53,3 +53,5 @@ dist/
 
 # tanstack
 .tanstack
+# sst (IaC state — backed up to S3 at deploy time)
+.sst/
