@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider } from "posthog-js/react";
 
-import { analytics, analyticsEnabled } from "~/analytics/events";
+import { analytics, analyticsEnabled, initAnalytics } from "~/analytics/events";
 import { authClient } from "~/auth/client";
 
 /**
@@ -17,11 +17,9 @@ function PageviewTracker() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    if (!analyticsEnabled || !pathname) return;
+    if (!pathname) return;
     const query = searchParams.toString();
-    analytics.pageview(
-      window.origin + pathname + (query ? `?${query}` : ""),
-    );
+    analytics.pageview(window.origin + pathname + (query ? `?${query}` : ""));
   }, [pathname, searchParams]);
 
   return null;
@@ -32,29 +30,39 @@ function IdentityTracker() {
   const { data: session } = authClient.useSession();
   const identifiedUserId = useRef<string | null>(null);
 
+  // Depend on the primitives, not the session object — the session object is
+  // re-created on every poll and would re-enter the effect needlessly.
+  const userId = session?.user.id ?? null;
+  const email = session?.user.email ?? "";
+  const name = session?.user.name ?? "";
+
   useEffect(() => {
     if (!analyticsEnabled) return;
-    const user = session?.user;
-    if (user) {
-      if (identifiedUserId.current !== user.id) {
-        analytics.identify(user.id, { email: user.email, name: user.name });
-        identifiedUserId.current = user.id;
+    if (userId !== null) {
+      if (identifiedUserId.current !== userId) {
+        analytics.identify(userId, { email, name });
+        identifiedUserId.current = userId;
       }
     } else if (identifiedUserId.current !== null) {
       analytics.reset();
       identifiedUserId.current = null;
     }
-  }, [session]);
+  }, [userId, email, name]);
 
   return null;
 }
 
 /**
- * Provides the PostHog client to the tree. Initialization happens (at most
- * once) in `~/analytics/events` — when `NEXT_PUBLIC_POSTHOG_KEY` is unset the
- * client stays uninitialized and both trackers no-op.
+ * Provides the PostHog client to the tree and owns its initialization —
+ * `initAnalytics` is idempotent and runs after mount, so importing the
+ * analytics module has no side effects. When `NEXT_PUBLIC_POSTHOG_KEY` is
+ * unset the client stays uninitialized and both trackers no-op.
  */
 export function AnalyticsProvider(props: { children: React.ReactNode }) {
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
   return (
     <PostHogProvider client={posthog}>
       {/* useSearchParams requires a Suspense boundary. */}

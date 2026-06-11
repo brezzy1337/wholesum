@@ -11,18 +11,49 @@ const key = env.NEXT_PUBLIC_POSTHOG_KEY;
  */
 export const analyticsEnabled = typeof window !== "undefined" && key != null;
 
-if (typeof window !== "undefined" && key != null && !posthog.__loaded) {
+let initialized = false;
+
+/**
+ * Initialize the PostHog client. Idempotent — safe to call from multiple
+ * mounts. Importing this module has no side effects; `AnalyticsProvider`
+ * calls this from a mount effect so init is owned by the React tree.
+ *
+ * PRIVACY (security-review-mandated settings — do NOT relax any of these
+ * without a security re-review):
+ * - `autocapture: false` — default autocapture sends `$el_text` on clicks,
+ *   which would leak dietary/allergen chip labels ("Peanuts", "Vegan").
+ *   We capture explicit, typed events only.
+ * - `disable_session_recording: true` — session replay would record the
+ *   budget input and dietary chips, and is otherwise one dashboard toggle
+ *   away from being enabled remotely.
+ * - `disable_external_dependency_loading: true` — blocks runtime remote
+ *   `<script>` injection from the PostHog host (toolbar, remote config,
+ *   recorder, etc.).
+ */
+export function initAnalytics() {
+  // `key == null` is implied by `analyticsEnabled` but repeated here so
+  // TypeScript narrows `key` to a string.
+  if (!analyticsEnabled || initialized || key == null) return;
+  initialized = true;
   posthog.init(key, {
     api_host: env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
     // The App Router needs manual pageviews — see PageviewTracker.
     capture_pageview: false,
     capture_pageleave: true,
+    autocapture: false,
+    disable_session_recording: true,
+    disable_external_dependency_loading: true,
   });
 }
 
-function capture(event: string, properties?: Record<string, unknown>) {
+/** The single guard path — every PostHog call routes through here. */
+function withClient(fn: (client: typeof posthog) => void) {
   if (!analyticsEnabled) return;
-  posthog.capture(event, properties);
+  fn(posthog);
+}
+
+function capture(event: string, properties?: Record<string, unknown>) {
+  withClient((client) => client.capture(event, properties));
 }
 
 /**
@@ -37,12 +68,10 @@ export const analytics = {
     capture("$pageview", { $current_url: currentUrl });
   },
   identify(userId: string, properties: { email: string; name: string }) {
-    if (!analyticsEnabled) return;
-    posthog.identify(userId, properties);
+    withClient((client) => client.identify(userId, properties));
   },
   reset() {
-    if (!analyticsEnabled) return;
-    posthog.reset();
+    withClient((client) => client.reset());
   },
 
   onboardingStepCompleted(properties: {

@@ -146,6 +146,8 @@ export function OnboardingWizard() {
   const upsertProfile = useMutation(
     trpc.profiles.upsert.mutationOptions({
       onSuccess: () => {
+        // Step 3 only counts as completed once the profile actually saved.
+        analytics.onboardingStepCompleted({ step: 3, step_name: "dietary" });
         analytics.onboardingCompleted({ household_size: householdSize });
         router.push("/plans");
         router.refresh();
@@ -163,8 +165,6 @@ export function OnboardingWizard() {
 
   const handleFinish = () => {
     // PRIVACY: dietary/allergen/budget contents never go to analytics.
-    analytics.onboardingStepCompleted({ step: 3, step_name: "dietary" });
-
     const dollars = Number.parseFloat(budget);
     const monthlyBudgetCents =
       Number.isFinite(dollars) && dollars > 0
