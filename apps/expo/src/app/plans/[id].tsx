@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -14,10 +14,11 @@ import {
   StatusChip,
 } from "~/components/plan-ui";
 import { SessionGate } from "~/components/session-gate";
+import { analytics } from "~/utils/analytics";
 import { trpc } from "~/utils/api";
 
-// Mirrors apps/nextjs plans/[id]/plan-detail.tsx. Deliberate divergences:
-// - No analytics (PostHog mobile is out of scope).
+// Mirrors apps/nextjs plans/[id]/plan-detail.tsx (including its funnel
+// events). Deliberate divergence:
 // - Cart opens via expo-web-browser's in-app browser instead of window.open,
 //   so the web's "new tab didn't open?" popup-blocker fallback link is
 //   unnecessary; the cached-link "Open your cart again" behavior is kept.
@@ -127,6 +128,11 @@ function LoadedPlan(props: { plan: Plan }) {
   const regeneratePlan = useMutation(
     trpc.plan.regenerate.mutationOptions({
       onSuccess: (newPlan) => {
+        analytics.planRegenerated({
+          plan_id: plan.id,
+          from_status: plan.status,
+          new_plan_id: newPlan.id,
+        });
         void queryClient.invalidateQueries({
           queryKey: trpc.plan.list.queryKey(),
         });
@@ -146,12 +152,22 @@ function LoadedPlan(props: { plan: Plan }) {
   // expire on their own; one per plan view is plenty).
   const cartUrl = createCartLink.data?.url ?? null;
   const openCart = () => {
+    analytics.sentToInstacart({ plan_id: plan.id, reopened: cartUrl != null });
     if (cartUrl) {
       void WebBrowser.openBrowserAsync(cartUrl);
       return;
     }
     createCartLink.mutate({ id: plan.id });
   };
+
+  // Log a failed plan view once per mount — not on every poll/render tick.
+  const failedViewedRef = useRef(false);
+  useEffect(() => {
+    if (plan.status === "failed" && !failedViewedRef.current) {
+      failedViewedRef.current = true;
+      analytics.planFailedViewed({ plan_id: plan.id });
+    }
+  }, [plan.status, plan.id]);
 
   // On a ready plan, checkout is the primary action; Regenerate is secondary.
   const isReadyWithPayload = plan.status === "ready" && plan.payload != null;

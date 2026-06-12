@@ -7,10 +7,11 @@ import { useMutation } from "@tanstack/react-query";
 
 import { cn, Overline, PrimaryButton } from "~/components/plan-ui";
 import { SessionGate } from "~/components/session-gate";
+import { analytics } from "~/utils/analytics";
 import { trpc } from "~/utils/api";
 
-// Mirrors apps/nextjs onboarding-wizard.tsx (reviewed product rules).
-// Deliberate divergence: NO analytics — PostHog mobile is out of scope.
+// Mirrors apps/nextjs onboarding-wizard.tsx (reviewed product rules),
+// including its funnel events.
 
 const ALLERGENS = [
   "Peanuts",
@@ -136,6 +137,9 @@ function OnboardingWizard() {
   const upsertProfile = useMutation(
     trpc.profiles.upsert.mutationOptions({
       onSuccess: () => {
+        // Step 3 only counts as completed once the profile actually saved.
+        analytics.onboardingStepCompleted({ step: 3, step_name: "dietary" });
+        analytics.onboardingCompleted({ household_size: householdSize });
         router.push("/plans");
       },
     }),
@@ -150,6 +154,7 @@ function OnboardingWizard() {
   };
 
   const handleFinish = () => {
+    // PRIVACY: dietary/allergen/budget contents never go to analytics.
     const dollars = Number.parseFloat(budget);
     const monthlyBudgetCents =
       Number.isFinite(dollars) && dollars > 0
@@ -285,7 +290,15 @@ function OnboardingWizard() {
             </Text>
           ) : null}
           {step < 3 ? (
-            <PrimaryButton onPress={() => setStep(step === 1 ? 2 : 3)}>
+            <PrimaryButton
+              onPress={() => {
+                analytics.onboardingStepCompleted({
+                  step,
+                  step_name: step === 1 ? "budget" : "household",
+                });
+                setStep(step === 1 ? 2 : 3);
+              }}
+            >
               Continue
             </PrimaryButton>
           ) : (

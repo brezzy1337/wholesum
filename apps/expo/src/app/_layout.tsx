@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 
+import { AnalyticsTracker } from "~/components/analytics-tracker";
 import { queryClient } from "~/utils/api";
 
 import "../styles.css";
@@ -16,6 +17,9 @@ import "../styles.css";
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
+      {/* $screen tracking + PostHog identify/reset; a no-op without
+          EXPO_PUBLIC_POSTHOG_KEY. */}
+      <AnalyticsTracker />
       {/*
           The Stack component displays the current page. Screens render their
           own Wholesum-branded headers (mirroring the web layouts), so the
