@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 
 import { cn } from "@acme/ui";
 
+import { analytics } from "~/analytics/events";
 import { useTRPC } from "~/trpc/react";
 
 const ALLERGENS = [
@@ -145,6 +146,9 @@ export function OnboardingWizard() {
   const upsertProfile = useMutation(
     trpc.profiles.upsert.mutationOptions({
       onSuccess: () => {
+        // Step 3 only counts as completed once the profile actually saved.
+        analytics.onboardingStepCompleted({ step: 3, step_name: "dietary" });
+        analytics.onboardingCompleted({ household_size: householdSize });
         router.push("/plans");
         router.refresh();
       },
@@ -160,6 +164,7 @@ export function OnboardingWizard() {
   };
 
   const handleFinish = () => {
+    // PRIVACY: dietary/allergen/budget contents never go to analytics.
     const dollars = Number.parseFloat(budget);
     const monthlyBudgetCents =
       Number.isFinite(dollars) && dollars > 0
@@ -295,7 +300,15 @@ export function OnboardingWizard() {
             </p>
           ) : null}
           {step < 3 ? (
-            <PrimaryButton onClick={() => setStep(step === 1 ? 2 : 3)}>
+            <PrimaryButton
+              onClick={() => {
+                analytics.onboardingStepCompleted({
+                  step,
+                  step_name: step === 1 ? "budget" : "household",
+                });
+                setStep(step === 1 ? 2 : 3);
+              }}
+            >
               Continue
             </PrimaryButton>
           ) : (

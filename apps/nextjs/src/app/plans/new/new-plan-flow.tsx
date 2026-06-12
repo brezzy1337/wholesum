@@ -7,6 +7,7 @@ import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 
 import { cn } from "@acme/ui";
 
+import { analytics } from "~/analytics/events";
 import { useTRPC } from "~/trpc/react";
 import { Overline, PrimaryButton } from "../_components/plan-ui";
 
@@ -36,6 +37,11 @@ export function NewPlanFlow() {
   const createPlan = useMutation(
     trpc.plan.create.mutationOptions({
       onSuccess: (plan) => {
+        analytics.planCreated({
+          plan_id: plan.id,
+          retailer_key: selectedRetailerKey,
+          store_skipped: storeSkipped,
+        });
         router.push(`/plans/${plan.id}`);
       },
     }),
@@ -168,6 +174,9 @@ export function NewPlanFlow() {
                       type="button"
                       aria-pressed={selected}
                       onClick={() => {
+                        analytics.storeSelected({
+                          retailer_key: store.retailerKey,
+                        });
                         setSelectedRetailerKey(store.retailerKey);
                         setStoreSkipped(false);
                       }}
@@ -211,6 +220,7 @@ export function NewPlanFlow() {
           <button
             type="button"
             onClick={() => {
+              analytics.storeSkipped();
               setStoreSkipped(true);
               setSelectedRetailerKey(null);
             }}
