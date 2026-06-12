@@ -1,18 +1,20 @@
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Stack } from "expo-router";
+import { useRouter } from "expo-router";
 
+import { Overline } from "~/components/plan-ui";
 import { authClient } from "~/utils/auth";
 
 function MobileAuth() {
   const { data: session } = authClient.useSession();
 
   return (
-    <>
-      <Text className="text-foreground pb-2 text-center text-xl font-semibold">
+    <View className="flex flex-col gap-3">
+      <Text className="text-content-secondary pb-2 text-center text-base">
         {session?.user.name ? `Hello, ${session.user.name}` : "Not logged in"}
       </Text>
       <Pressable
+        accessibilityRole="button"
         onPress={() =>
           session
             ? authClient.signOut()
@@ -21,25 +23,58 @@ function MobileAuth() {
                 callbackURL: "/",
               })
         }
-        className="bg-primary flex items-center rounded-sm p-2"
+        className={
+          session
+            ? "items-center rounded-full border border-[rgba(15,19,17,0.12)] py-4 active:opacity-80"
+            : "bg-sprout items-center rounded-full py-4 active:opacity-80"
+        }
       >
-        <Text>{session ? "Sign Out" : "Sign In With Google"}</Text>
+        <Text className="text-spruce text-base font-semibold">
+          {session ? "Sign Out" : "Sign In With Google"}
+        </Text>
       </Pressable>
-    </>
+    </View>
   );
 }
 
 export default function Index() {
+  const router = useRouter();
+  const { data: session } = authClient.useSession();
+
   return (
-    <SafeAreaView className="bg-background">
-      {/* Changes page title visible on the header */}
-      <Stack.Screen options={{ title: "Home Page" }} />
-      <View className="bg-background h-full w-full p-4">
-        <Text className="text-foreground pb-2 text-center text-5xl font-bold">
-          Create <Text className="text-primary">T3</Text> Turbo
-        </Text>
+    <SafeAreaView className="flex-1 bg-white">
+      <View className="flex h-full w-full flex-col gap-6 px-6 pt-12 pb-8">
+        <View className="flex flex-col items-center gap-2">
+          <Overline>Eat well, spend smart</Overline>
+          <Text className="text-ink text-center text-5xl font-bold">
+            Wholesum
+          </Text>
+        </View>
 
         <MobileAuth />
+
+        {session ? (
+          <View className="flex flex-col items-center gap-4">
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/onboarding")}
+              className="bg-sprout w-full items-center rounded-full py-4 active:opacity-80"
+            >
+              <Text className="text-spruce text-base font-semibold">
+                Get started
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push("/plans")}
+              className="active:opacity-80"
+            >
+              <Text className="text-spruce text-base font-semibold">
+                Your plans
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </SafeAreaView>
   );
