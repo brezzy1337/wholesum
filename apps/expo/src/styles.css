@@ -5,3 +5,5 @@
 @import "nativewind/theme";
 
 @import "@acme/tailwind-config/theme";
+
+@import "@acme/tailwind-config/brand";

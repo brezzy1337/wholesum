@@ -1,24 +1,13 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@acme/tailwind-config/theme";
+@import "@acme/tailwind-config/brand";
 
 @source "../../../../packages/ui/src/*.{ts,tsx}";
 
 @custom-variant dark (&:where(.dark, .dark *));
 @custom-variant light (&:where(.light, .light *));
 @custom-variant auto (&:where(.auto, .auto *));
-
-/* Wholesum "Spruce & Mint" design tokens */
-@theme {
-  --color-sprout: #5fd9a8;
-  --color-spruce: #0e3b30;
-  --color-ink: #0f1311;
-  --color-content-secondary: #49524e;
-  --color-content-tertiary: #6b736f;
-  --color-surface-neutral: #ecf1ee;
-  --color-positive: #1f6b4f;
-  --color-negative: #b3402f;
-}
 
 @utility container {
   margin-inline: auto;
