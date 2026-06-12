@@ -215,9 +215,7 @@ function LoadedPlan(props: { plan: Plan }) {
             We couldn&apos;t generate this plan.
           </Text>
           {plan.error ? (
-            <Text className="text-content-secondary text-sm">
-              {plan.error}
-            </Text>
+            <Text className="text-content-secondary text-sm">{plan.error}</Text>
           ) : null}
         </View>
         {regenerateSection}
@@ -337,9 +335,7 @@ function PlanDetail(props: { planId: string }) {
             onPress={() => router.push("/plans")}
             className="active:opacity-80"
           >
-            <Text className="text-spruce text-sm font-semibold">
-              All plans
-            </Text>
+            <Text className="text-spruce text-sm font-semibold">All plans</Text>
           </Pressable>
           {planQuery.data ? (
             <StatusChip status={planQuery.data.status} />

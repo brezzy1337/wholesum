@@ -34,9 +34,9 @@ function NewPlanFlow() {
   const [postalCode, setPostalCode] = useState("");
   const [countryCode, setCountryCode] = useState<CountryCode>("US");
   const [search, setSearch] = useState<StoreSearch | null>(null);
-  const [selectedRetailerKey, setSelectedRetailerKey] = useState<
-    string | null
-  >(null);
+  const [selectedRetailerKey, setSelectedRetailerKey] = useState<string | null>(
+    null,
+  );
   const [storeSkipped, setStoreSkipped] = useState(false);
 
   const storesQuery = useQuery(
@@ -175,9 +175,7 @@ function NewPlanFlow() {
                 onPress={() => void storesQuery.refetch()}
                 className="active:opacity-80"
               >
-                <Text className="text-spruce text-sm font-semibold">
-                  Retry
-                </Text>
+                <Text className="text-spruce text-sm font-semibold">Retry</Text>
               </Pressable>
             </View>
           ) : storesQuery.data.length === 0 ? (
