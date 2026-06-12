@@ -80,12 +80,26 @@ export interface ProductsLinkLineItem {
   unit?: string;
 }
 
+/**
+ * Optional landing-page behaviour for a products link
+ * (`landing_page_configuration` in the API contract, verified 2026-06-12).
+ */
+export interface ProductsLinkLandingPageConfiguration {
+  /**
+   * URL Instacart's landing page links back to (e.g. the originating plan).
+   * Must be https; validated before the request is sent.
+   */
+  partnerLinkbackUrl?: string;
+  enablePantryItems?: boolean;
+}
+
 export interface CreateProductsLinkParams {
   title: string;
   lineItems: ProductsLinkLineItem[];
   /** Days until the link expires; the API caps this at 365. */
   expiresInDays?: number;
   instructions?: string[];
+  landingPageConfiguration?: ProductsLinkLandingPageConfiguration;
 }
 
 export interface ProductsLink {
@@ -240,6 +254,23 @@ export function createInstacartClient(
     async createProductsLink(params) {
       // NOTE: the public products-link contract has no retailer/retailer_key
       // field — the user picks the store on the Instacart page itself.
+      const linkbackUrl = params.landingPageConfiguration?.partnerLinkbackUrl;
+      if (linkbackUrl !== undefined) {
+        // Same defence-in-depth posture as every other URL in this client:
+        // the linkback URL ends up on a user-facing Instacart page, so it
+        // must parse and be https. The message stays terse — it never echoes
+        // the offending value.
+        let parsedLinkbackUrl: URL;
+        try {
+          parsedLinkbackUrl = new URL(linkbackUrl);
+        } catch {
+          throw new Error("Instacart partner linkback URL must be a valid URL");
+        }
+        if (parsedLinkbackUrl.protocol !== "https:") {
+          throw new Error("Instacart partner linkback URL must be https");
+        }
+      }
+
       const requestBody = {
         title: params.title,
         link_type: "shopping_list",
@@ -248,6 +279,18 @@ export function createInstacartClient(
         }),
         ...(params.instructions !== undefined && {
           instructions: params.instructions,
+        }),
+        ...(params.landingPageConfiguration !== undefined && {
+          landing_page_configuration: {
+            ...(linkbackUrl !== undefined && {
+              partner_linkback_url: linkbackUrl,
+            }),
+            ...(params.landingPageConfiguration.enablePantryItems !==
+              undefined && {
+              enable_pantry_items:
+                params.landingPageConfiguration.enablePantryItems,
+            }),
+          },
         }),
         line_items: params.lineItems.map((item) => ({
           name: item.name,
