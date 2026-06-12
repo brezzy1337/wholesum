@@ -73,9 +73,14 @@ function capture(
  */
 export const analytics = {
   /** Mobile counterpart of web's `$pageview` — `$screen` per PostHog's
-   * mobile convention, fired on Expo Router path changes. */
+   * mobile convention, fired on Expo Router path changes. Unlike the other
+   * SDK methods, `screen()` returns a Promise (it touches async storage);
+   * swallow rejections so a storage hiccup can't surface as an unhandled
+   * rejection — fatal on Hermes debug builds. */
   screen(name: string) {
-    withClient((posthog) => void posthog.screen(name));
+    withClient((posthog) => {
+      posthog.screen(name).catch(() => undefined);
+    });
   },
   identify(userId: string, properties: { email: string; name: string }) {
     withClient((posthog) => posthog.identify(userId, properties));

@@ -14,6 +14,7 @@ function ScreenTracker() {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!analyticsEnabled) return;
     analytics.screen(pathname);
   }, [pathname]);
 
