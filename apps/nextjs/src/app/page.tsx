@@ -4,6 +4,9 @@ import { getSession } from "~/auth/server";
 import { HydrateClient } from "~/trpc/server";
 import { AuthShowcase } from "./_components/auth-showcase";
 
+// TODO(mobile-parity): promote BigLeaf/SmallLeaf + the wordmark into a shared
+// @acme/ui logo component before mirroring this screen on Expo, so the SVG
+// path data lives in exactly one place.
 function BigLeaf({ className }: { className?: string }) {
   return (
     <svg
@@ -81,16 +84,23 @@ export default async function HomePage() {
           {/* Step chips */}
           <div className="flex w-full gap-3">
             {[
-              { n: 1, label: "Budget", circle: "bg-clay" },
-              { n: 2, label: "Cart", circle: "bg-gold" },
-              { n: 3, label: "Instacart", circle: "bg-spruce" },
+              // numeral color tracks circle lightness (Figma fidelity + AA
+              // contrast): dark circles take white, the light gold takes spruce.
+              { n: 1, label: "Budget", circle: "bg-clay", numText: "text-white" },
+              { n: 2, label: "Cart", circle: "bg-gold", numText: "text-spruce" },
+              {
+                n: 3,
+                label: "Instacart",
+                circle: "bg-spruce",
+                numText: "text-white",
+              },
             ].map((step) => (
               <div
                 key={step.n}
                 className="bg-surface-neutral flex flex-1 flex-col items-center gap-2 rounded-xl px-2 py-4"
               >
                 <span
-                  className={`${step.circle} flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold text-white`}
+                  className={`${step.circle} ${step.numText} flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold`}
                 >
                   {step.n}
                 </span>
