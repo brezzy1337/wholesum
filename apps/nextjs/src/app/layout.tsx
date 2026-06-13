@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 
 import { cn } from "@acme/ui";
 import { ThemeProvider, ThemeToggle } from "@acme/ui/theme";
@@ -12,40 +12,33 @@ import { TRPCReactProvider } from "~/trpc/react";
 import "~/app/styles.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    env.VERCEL_ENV === "production"
-      ? "https://turbo.t3.gg"
-      : "http://localhost:3000",
-  ),
-  title: "Create T3 Turbo",
-  description: "Simple monorepo with shared backend for web & mobile apps",
+  metadataBase: new URL(env.APP_URL ?? "http://localhost:3000"),
+  title: "Wholesum — Eat well, spend smart",
+  description:
+    "Turn your grocery budget and dietary needs into a healthy, budget-fit Instacart cart.",
   openGraph: {
-    title: "Create T3 Turbo",
-    description: "Simple monorepo with shared backend for web & mobile apps",
-    url: "https://create-t3-turbo.vercel.app",
-    siteName: "Create T3 Turbo",
+    title: "Wholesum — Eat well, spend smart",
+    description:
+      "Turn your grocery budget and dietary needs into a healthy, budget-fit Instacart cart.",
+    siteName: "Wholesum",
   },
   twitter: {
     card: "summary_large_image",
-    site: "@jullerino",
-    creator: "@jullerino",
   },
 };
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: light)", color: "#faf5ec" },
     { media: "(prefers-color-scheme: dark)", color: "black" },
   ],
 };
 
-const geistSans = Geist({
+// The shared Tailwind theme maps `--font-sans` → `--font-geist-sans`, so we bind
+// Inter to that variable to render the whole app in Inter via the `font-sans` utility.
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-geist-sans",
-});
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
 });
 
 export default function RootLayout(props: { children: React.ReactNode }) {
@@ -54,8 +47,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       <body
         className={cn(
           "bg-background text-foreground min-h-screen font-sans antialiased",
-          geistSans.variable,
-          geistMono.variable,
+          inter.variable,
         )}
       >
         <AnalyticsProvider>

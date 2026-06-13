@@ -1,8 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { Button } from "@acme/ui/button";
-
 import { auth, getSession } from "~/auth/server";
 
 export async function AuthShowcase() {
@@ -10,9 +8,10 @@ export async function AuthShowcase() {
 
   if (!session) {
     return (
-      <form>
-        <Button
-          size="lg"
+      <form className="w-full">
+        <button
+          type="submit"
+          className="bg-sprout text-spruce w-full rounded-full py-3 font-semibold transition-opacity hover:opacity-90"
           formAction={async () => {
             "use server";
             const res = await auth.api.signInSocial({
@@ -28,31 +27,26 @@ export async function AuthShowcase() {
           }}
         >
           Sign in with Google
-        </Button>
+        </button>
       </form>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4">
-      <p className="text-center text-2xl">
-        <span>Logged in as {session.user.name}</span>
-      </p>
-
-      <form>
-        <Button
-          size="lg"
-          formAction={async () => {
-            "use server";
-            await auth.api.signOut({
-              headers: await headers(),
-            });
-            redirect("/");
-          }}
-        >
-          Sign out
-        </Button>
-      </form>
-    </div>
+    <form className="w-full">
+      <button
+        type="submit"
+        formAction={async () => {
+          "use server";
+          await auth.api.signOut({
+            headers: await headers(),
+          });
+          redirect("/");
+        }}
+        className="text-content-tertiary w-full py-2 text-center text-xs underline-offset-4 hover:underline"
+      >
+        Sign out
+      </button>
+    </form>
   );
 }

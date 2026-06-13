@@ -6,12 +6,24 @@
 
 /* Wholesum "Spruce & Mint" design tokens */
 @theme {
-  --color-sprout: #5fd9a8;
-  --color-spruce: #0e3b30;
-  --color-ink: #0f1311;
-  --color-content-secondary: #49524e;
-  --color-content-tertiary: #6b736f;
-  --color-surface-neutral: #ecf1ee;
-  --color-positive: #1f6b4f;
-  --color-negative: #b3402f;
+  /* Core "Spruce & Mint" — mint is the ONLY interactive/action color. */
+  --color-sprout: #46e6a8;            /* corrected from #5fd9a8 — the mint action color (buttons, links, selected, progress) */
+  --color-spruce: #0e3b30;            /* deep green — primary brand + text */
+  --color-ink: #0f1311;               /* near-black ink */
+  --color-content-secondary: #49524e; /* muted body text */
+  --color-content-tertiary: #6b736f;  /* fainter text / microcopy */
+  --color-surface-neutral: #ecf3ef;   /* corrected from #ecf1ee — pale mint surface (cards, chips) */
+  --color-positive: #1f6b4f;          /* success / confirm status */
+  --color-negative: #b3402f;          /* error / destructive status */
+
+  /*
+   * Warm "expressive layer" — illustration, celebration, categories, editorial ONLY.
+   * NEVER on interactive UI (buttons, links, toggles, selected, status): the action
+   * always stays mint, so warm color never competes with the mint action cue.
+   */
+  --color-cream: #faf5ec;             /* warm page background */
+  --color-clay: #f26b4e;              /* warm coral accent */
+  --color-clay-tint: #fce7df;         /* clay wash */
+  --color-gold: #f2b441;              /* warm gold accent */
+  --color-gold-tint: #fbefd4;         /* gold wash */
 }
