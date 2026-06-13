@@ -13,10 +13,11 @@ import { skipToken, useMutation, useQuery } from "@tanstack/react-query";
 
 import { cn, Overline, PrimaryButton } from "~/components/plan-ui";
 import { SessionGate } from "~/components/session-gate";
+import { analytics } from "~/utils/analytics";
 import { trpc } from "~/utils/api";
 
-// Mirrors apps/nextjs plans/new/new-plan-flow.tsx. No analytics (out of
-// scope on mobile).
+// Mirrors apps/nextjs plans/new/new-plan-flow.tsx, including its funnel
+// events.
 
 type CountryCode = "US" | "CA";
 
@@ -46,6 +47,11 @@ function NewPlanFlow() {
   const createPlan = useMutation(
     trpc.plan.create.mutationOptions({
       onSuccess: (plan) => {
+        analytics.planCreated({
+          plan_id: plan.id,
+          retailer_key: selectedRetailerKey,
+          store_skipped: storeSkipped,
+        });
         router.push(`/plans/${plan.id}`);
       },
     }),
@@ -192,6 +198,9 @@ function NewPlanFlow() {
                     accessibilityRole="button"
                     accessibilityState={{ selected }}
                     onPress={() => {
+                      analytics.storeSelected({
+                        retailer_key: store.retailerKey,
+                      });
                       setSelectedRetailerKey(store.retailerKey);
                       setStoreSkipped(false);
                     }}
@@ -235,6 +244,7 @@ function NewPlanFlow() {
           <Pressable
             accessibilityRole="button"
             onPress={() => {
+              analytics.storeSkipped();
               setStoreSkipped(true);
               setSelectedRetailerKey(null);
             }}
