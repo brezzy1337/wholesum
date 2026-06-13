@@ -55,3 +55,5 @@ dist/
 .tanstack
 # sst (IaC state — backed up to S3 at deploy time)
 .sst/
+# sst-generated resource type declarations (regenerated per deploy/secret)
+sst-env.d.ts

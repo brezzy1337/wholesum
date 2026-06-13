@@ -65,6 +65,38 @@ gains generating/failed states; "Connected" store badge → "Selected"; store di
 scheduled generation. Regenerations and plan→conversion attribution are the quality signals the
 post-MVP engine work depends on; log them from day one.
 
+> **Frontend status caveat (2026-06-13):** the web `✅ done` marks above mean *feature logic
+> shipped and wired to the backend* — **not** design-complete. The landing page is still the
+> `create-t3-turbo` scaffold, all metadata/SEO is template defaults, and the feature screens were
+> built to the **wireframe + deltas**, not the Figma visual design. Closing that gap is **Phase 2**,
+> the active scope below.
+
+### Phase 2 — Web frontend implementation (ACTIVE — scoped 2026-06-13)
+
+Bring the **web** app from "feature screens that work" to a polished, branded product. **Web
+first; a matching mobile-parity phase mirrors each slice afterward** (same screens, NativeWind,
+no design re-decisions). Design is **Figma-driven** — build to the Figma file
+`Gczrt4Bi3E9zR41Q1Jnxlh` ("Wholesum — Spruce & Mint") via the connected Figma MCP, honoring the
+wireframe deltas already recorded above. Runs entirely on the **local substrate** (no AWS): see
+the note under the table.
+
+| # | Slice | What ships | Domains |
+|---|-------|------------|---------|
+| F1 | App shell & brand foundation | Real Wholesum metadata/SEO/OG/title — kill every `create-t3-turbo` / `@jullerino` / `turbo.t3.gg` default in `layout.tsx` — fonts, and a branded landing page (value prop *"Eat well, spend smart"*, sign-in entry, authed → plans). Spruce & Mint palette/type/shape tokens verified against Figma and consolidated in `@acme/ui`. | ui → web |
+| F2 | Onboarding design pass | Budget hero · household count · dietary needs to Figma fidelity — layout, type, color, and **every state** (default / valid / error / submitting). | web (ui as needed) |
+| F3 | Plans surfaces design pass | Plans list (with empty + loading) · new-plan + store picker ("Selected" badge, skip path, US/CA postal search) · plan detail (generating poll · visible failed + regenerate · ready view with nutrition tiles + "estimated until checkout" · cart CTA). | web |
+| F4 | e2e harness | The repo's **first `test` task** — Playwright against the local stack, covering sign-in → onboarding → plan create → ready. Adds `test` to `turbo.json` and updates the Verification block. | tooling → web |
+
+**Local substrate (no AWS spend):** this phase runs against a `docker` Postgres + `pnpm -F
+@acme/nextjs dev` (root `.env` → `localhost:5432/wholesum`); the worker can be run locally to
+produce real `ready` plans for F3/F4. The paid AWS deploy stays deferred until Phase 2 **and** the
+cost-metrics baseline are done — frontend gets validated locally first.
+
+**Routing note:** F1 touches `ui` then `web` (sequence the token consolidation before the web
+consumes it); F2–F3 are `web`-only design passes (parallelizable across distinct screens, but
+watch shared components in `apps/nextjs/src/app/plans/_components`); F4 is `tooling` (Playwright
+config + turbo task) then `web` (specs).
+
 ### Post-MVP (in rough priority order)
 
 - **Affiliate webhook + conversions** — exactly-once processor in the worker (dedup on
@@ -161,8 +193,9 @@ Every sub-agent dispatch states, explicitly:
 
 ## Verification commands (this repo)
 
-There is **no `test` task** in the template yet — verification today is types + lint + build. Scope
-each to the package under change with `-F`:
+There is **no `test` task** in the template yet — verification today is types + lint + build
+(Phase 2 slice **F4** introduces the first one: Playwright e2e). Scope each to the package under
+change with `-F`:
 
 ```bash
 pnpm -F @acme/<pkg> typecheck      # tsc for one package
